@@ -1,0 +1,31 @@
+{
+  "scope": "synthetic_cpu_contract_smoke_not_libero_e2",
+  "updates": 100,
+  "replay_ingestion": "PASS",
+  "critic_update": "PASS",
+  "actor_update": "PASS",
+  "target_update": "PASS",
+  "small_weight_sync": "PASS",
+  "checkpoint_roundtrip": "PASS",
+  "base_frozen": "PASS",
+  "actor_loss_final": -0.16655835509300232,
+  "critic_loss_final": 0.17318883538246155,
+  "residual_rms": 0.0008574269013479352,
+  "residual_base_rms_ratio": 0.0018163853092119098,
+  "per_action_dim_rms": [
+    0.0008274054853245616,
+    0.0008907845476642251,
+    0.000914774602279067,
+    0.0008678707526996732,
+    0.0009550151298753917,
+    0.0007396358414553106,
+    0.0007867923122830689
+  ],
+  "per_chunk_position_rms": [
+    0.0008349681156687438,
+    0.0008821323281154037,
+    0.0008719256147742271,
+    0.0008016789215616882,
+    0.0008931022020988166
+  ]
+}
