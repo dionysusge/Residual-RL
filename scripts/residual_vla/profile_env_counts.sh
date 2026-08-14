@@ -12,6 +12,7 @@ for total_envs in 32 64; do
     runner.logger.experiment_name="${run_id}" \
     runner.max_epochs=1 \
     runner.val_check_interval=-1 \
+    algorithm.update_epoch=0 \
     env.train.total_num_envs="${total_envs}" \
     actor.micro_batch_size=128 \
     actor.global_batch_size=256

@@ -20,7 +20,9 @@ cluster:
   # rank owns a complete residual actor/twin-Q learner (FSDP no_shard), a
   # frozen pi0.5 rollout replica, and its existing rank-local CPU replay.
   component_placement:
-    actor,env,rollout: all
+    # Do not use `all`: on an 8-GPU node that creates eight actor/env/rollout
+    # processes. Residual-v0 is intentionally a two-rank experiment.
+    actor,env,rollout: ${oc.env:RESIDUAL_TRAIN_PLACEMENT,0-1}
 
 runner:
   task_type: embodied
@@ -92,24 +94,24 @@ env:
   train:
     total_num_envs: 4
     rollout_epoch: 1
-    max_episode_steps: 200
+    max_episode_steps: 600
     max_steps_per_rollout_epoch: 25
     auto_reset: true
     ignore_terminations: false
     use_fixed_reset_state_ids: true
-    task_id_filter: [0]
+    task_id_filter: [2]
     video_cfg:
       save_video: false
   eval:
     total_num_envs: 4
     rollout_epoch: 1
-    max_episode_steps: 200
+    max_episode_steps: 600
     max_steps_per_rollout_epoch: 25
     auto_reset: true
     ignore_terminations: false
     use_fixed_reset_state_ids: true
     is_eval: true
-    task_id_filter: [0]
+    task_id_filter: [2]
     video_cfg:
       save_video: false
 

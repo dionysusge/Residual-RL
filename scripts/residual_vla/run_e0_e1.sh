@@ -9,7 +9,7 @@ RLINF="$(cd "${SCRIPT_DIR}/../.." && pwd)"
   runner.logger.experiment_name=pi05_residual_e0 \
   runner.max_epochs=1 \
   algorithm.update_epoch=0 \
-  actor.model.residual.scale=0.0
+  rollout.model.residual.scale=0.0
 python "${SCRIPT_DIR}/validate_e0_trace.py" \
   "${RLINF}/results/residual_vla/traces/pi05_residual_e0"
 
@@ -21,7 +21,7 @@ for scale in 0.0 0.25 0.5; do
     runner.logger.experiment_name="${run_id}" \
     runner.max_epochs=1 \
     algorithm.update_epoch=0 \
-    actor.model.residual.scale="${scale}"
+    rollout.model.residual.scale="${scale}"
   python "${SCRIPT_DIR}/summarize_residual_traces.py" \
     "${RLINF}/results/residual_vla/traces/${run_id}"
 done

@@ -22,27 +22,36 @@ fi
 cd "${RLINF}"
 
 export REPO_PATH="${RLINF}"
-export PI05_LIBERO_CHECKPOINT
-
-export RESIDUAL_VLA_OUTPUT_ROOT="${RESIDUAL_VLA_OUTPUT_ROOT:-${RLINF}/results/residual_vla/logs}"
-export RESIDUAL_VLA_TRACE_ROOT="${RESIDUAL_VLA_TRACE_ROOT:-${RLINF}/results/residual_vla/traces}"
+export EMBODIED_PATH="${RLINF}/examples/embodiment"
 
 export MUJOCO_GL="${MUJOCO_GL:-egl}"
-export NCCL_NVLS_ENABLE="${NCCL_NVLS_ENABLE:-0}"
 export PYOPENGL_PLATFORM="${PYOPENGL_PLATFORM:-egl}"
 export TOKENIZERS_PARALLELISM="${TOKENIZERS_PARALLELISM:-false}"
 export PYTHONNOUSERSITE="${PYTHONNOUSERSITE:-1}"
 
-export LIBERO_TYPE="${LIBERO_TYPE:-standard}"
-export LIBERO_SUFFIX="${LIBERO_SUFFIX:-all}"
+# Logical RLinf accelerator rank, not CUDA_VISIBLE_DEVICES.
+export RESIDUAL_BASE_PLACEMENT="${RESIDUAL_BASE_PLACEMENT:-0}"
 
-export RESIDUAL_TRAIN_PLACEMENT="${RESIDUAL_TRAIN_PLACEMENT:-0-1}"
+export LIBERO_TYPE="${LIBERO_TYPE:-standard}"
+
+# Avoid an inherited shell mask disagreeing with Ray's accelerator rank map.
 unset CUDA_VISIBLE_DEVICES || true
 
-python examples/embodiment/train_embodied_agent.py \
-  --config-name libero_pi05_residual_ac_smoke \
-  runner.logger.experiment_name=pi05_libero_residual_v0_formal \
-  env.train.total_num_envs=64 \
-  actor.micro_batch_size=256 \
-  actor.global_batch_size=512 \
+task_id="${BASE_SMOKE_TASK_ID:-0}"
+num_envs="${BASE_SMOKE_ENVS:-4}"
+
+echo "Residual base episode smoke"
+echo "  python:     $(command -v python)"
+echo "  placement: ${RESIDUAL_BASE_PLACEMENT}"
+echo "  variant:   ${LIBERO_TYPE}"
+echo "  task:      ${task_id}"
+echo "  episodes:  ${num_envs}"
+
+bash evaluations/run_eval.sh \
+  libero \
+  libero_10_openpi_pi05_residual_base_eval \
+  runner.logger.experiment_name="pi05_base_smoke_task${task_id}" \
+  env.eval.total_num_envs="${num_envs}" \
+  env.eval.task_id_filter="[${task_id}]" \
+  env.eval.video_cfg.save_video=true \
   "$@"

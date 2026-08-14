@@ -1,0 +1,102 @@
+defaults:
+  - env/libero_10@env.eval
+  - model/pi0_5@rollout.model
+  - override hydra/job_logging: stdout
+  - _self_
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  searchpath:
+    - file://${oc.env:EMBODIED_PATH}/config/
+
+# RLinf discovers the complete accelerator inventory from the Ray cluster.
+# Therefore base-policy evaluation uses an explicit logical placement instead
+# of relying on CUDA_VISIBLE_DEVICES.
+cluster:
+  num_nodes: 1
+  component_placement:
+    env,rollout: ${oc.env:RESIDUAL_BASE_PLACEMENT,0}
+
+runner:
+  task_type: embodied_eval
+  logger:
+    log_path: "../results"
+    project_name: residual_vla_lab
+    experiment_name: "pi05_libero_residual_base_eval"
+    logger_backends: ["tensorboard"]
+
+  max_epochs: 1
+  max_steps: -1
+  only_eval: true
+  val_check_interval: -1
+  save_interval: -1
+  resume_dir: null
+  ckpt_path: null
+
+env:
+  group_name: "EnvGroup"
+
+  eval:
+    rollout_epoch: 1
+
+    # Smoke default. Screening overrides this with N fixed reset states.
+    total_num_envs: 4
+
+    # One launch corresponds to exactly N fixed episodes. We deliberately do
+    # not auto-reset into extra episodes during base screening.
+    auto_reset: false
+    ignore_terminations: false
+
+    max_episode_steps: 600
+    max_steps_per_rollout_epoch: 600
+
+    group_size: 1
+    is_eval: true
+
+    use_fixed_reset_state_ids: true
+    use_ordered_reset_state_ids: false
+
+    # Declared here so normal Hydra overrides work without a leading '+'.
+    task_id_filter: [0]
+
+    video_cfg:
+      save_video: true
+      info_on_video: true
+      video_base_dir: ${runner.logger.log_path}/video/eval
+
+rollout:
+  group_name: "RolloutGroup"
+
+  rollout_backend: "huggingface"
+  generation_backend: "huggingface"
+  recompute_logprobs: false
+
+  unnorm_key: libero_10
+  enable_offload: false
+  pipeline_stage_num: 1
+
+  model:
+    model_path: ${oc.env:PI05_LIBERO_CHECKPOINT}
+
+    # IMPORTANT:
+    # Keep screening identical to the frozen base used by residual-v0.
+    num_action_chunks: 5
+    num_steps: 5
+
+    openpi:
+      config_name: "pi05_libero"
+      num_images_in_input: 2
+
+      noise_level: 0.0
+      noise_method: "flow_ode"
+
+      action_chunk: 5
+      action_env_dim: 7
+      num_steps: 5
+
+      train_expert_only: true
+      add_value_head: false
+      value_after_vlm: false
+      use_rlt: false
