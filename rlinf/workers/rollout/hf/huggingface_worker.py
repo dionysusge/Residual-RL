@@ -772,8 +772,10 @@ class MultiStepRolloutWorker(Worker):
                 intervene_requested=env_output.get("intervene_flags", None),
             )
 
-            if self.enable_opd:
-                # OPD keeps this path separate to retain student action tokens for post-rollout teacher logprobs.
+            if self.enable_opd or self.residual_base_model is not None:
+                # OPD and residual rollouts must preserve the complete forward_inputs.
+                # Residual uses the final policy output to flush the pending transition
+                # with residual_transition_{proprio,ref_chunk}.
                 policy_output = self._build_policy_output(
                     actions,
                     result,
