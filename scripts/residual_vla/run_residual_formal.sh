@@ -40,9 +40,5 @@ export RESIDUAL_TRAIN_PLACEMENT="${RESIDUAL_TRAIN_PLACEMENT:-0-1}"
 unset CUDA_VISIBLE_DEVICES || true
 
 python examples/embodiment/train_embodied_agent.py \
-  --config-name libero_pi05_residual_ac_smoke \
-  runner.logger.experiment_name=pi05_libero_residual_v0_formal \
-  env.train.total_num_envs=64 \
-  actor.micro_batch_size=256 \
-  actor.global_batch_size=512 \
+  --config-name libero_pi05_residual_ac_formal \
   "$@"

@@ -1,0 +1,199 @@
+# Residual V0 formal training: frozen pi0.5 base + bounded stochastic residual actor-critic.
+defaults:
+  - env/libero_10@env.train
+  - env/libero_10@env.eval
+  - hybrid_engines/fsdp@actor.fsdp_config
+  - weight_syncer/patch_syncer@weight_syncer
+  - override hydra/job_logging: stdout
+  - _self_
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  searchpath:
+    - file://${oc.env:REPO_PATH}/examples/embodiment/config
+
+cluster:
+  num_nodes: 1
+  # Both visible GPUs are actor, rollout, and CPU-simulation env ranks. Each
+  # rank owns a complete residual actor/twin-Q learner (FSDP no_shard), a
+  # frozen pi0.5 rollout replica, and its existing rank-local CPU replay.
+  component_placement:
+    # Do not use `all`: on an 8-GPU node that creates eight actor/env/rollout
+    # processes. Residual-v0 is intentionally a two-rank experiment.
+    actor,env,rollout: ${oc.env:RESIDUAL_TRAIN_PLACEMENT,0-1}
+
+runner:
+  task_type: embodied
+  logger:
+    log_path: ${oc.env:RESIDUAL_VLA_OUTPUT_ROOT,../results}
+    project_name: residual_vla_lab
+    experiment_name: pi05_libero_residual_v0_formal
+    logger_backends: [tensorboard, wandb]
+  max_epochs: 500
+  max_steps: 500
+  only_eval: false
+  weight_sync_interval: 1
+  # Full fixed-reset Task2 evaluation and checkpoint every 25 global steps.
+  val_check_interval: 25
+  save_interval: 25
+  resume_dir: null
+  ckpt_path: null
+  enable_decoupled_mode: false
+  use_training_pipeline: false
+
+algorithm:
+  adv_type: embodied_sac
+  loss_type: residual_ac
+  update_epoch: 1
+  group_size: 1
+  agg_q: min
+  actor_agg_q: q1
+  q_head_type: ${actor.model.q_head_type}
+  bootstrap_type: standard
+  gamma: 0.96
+  tau: 0.005
+  q_weight: 1.0
+  bc_weight: 1.0
+  reference_dropout_prob: 0.0
+  entropy_tuning:
+    alpha_type: fixed_alpha
+    initial_alpha: 0.0
+    optim:
+      lr: 3.0e-4
+      lr_scheduler: torch_constant
+      clip_grad: 10.0
+  replay_buffer:
+    enable_cache: true
+    cache_size: 128
+    sample_window_size: 128
+    max_num_samples: 10000
+    min_buffer_size: 32
+    auto_save: false
+  # Reuse the proven Stage-2 scheduling plumbing; no Stage-1 representation is
+  # enabled or loaded.
+  rlt_schedule:
+    enable: true
+    max_updates_per_train_step: 16
+    warmup_min_size: 32
+    warmup_post_collect_updates: 8
+    train_every_episodes: 0
+    train_every_transitions: 8
+  actor_weight_schedule:
+    enable: false
+  target_update_freq: 1
+  target_update_type: all
+  train_actor_steps: 16
+  critic_actor_ratio: 2
+  critic_subsample_size: 0
+  backup_entropy: false
+
+env:
+  group_name: EnvGroup
+  train:
+    total_num_envs: 64
+    rollout_epoch: 1
+    max_episode_steps: 600
+    max_steps_per_rollout_epoch: 25
+    auto_reset: true
+    ignore_terminations: false
+    use_fixed_reset_state_ids: true
+    task_id_filter: [2]
+    video_cfg:
+      save_video: false
+  eval:
+    total_num_envs: 20
+    rollout_epoch: 1
+    max_episode_steps: 600
+    max_steps_per_rollout_epoch: 600
+    auto_reset: false
+    ignore_terminations: false
+    use_fixed_reset_state_ids: true
+    is_eval: true
+    task_id_filter: [2]
+    video_cfg:
+      save_video: false
+
+rollout:
+  group_name: RolloutGroup
+  backend: huggingface
+  enable_offload: false
+  pipeline_stage_num: 1
+  collect_transitions: true
+  collect_prev_infos: true
+  residual_trace:
+    enabled: true
+    root: ${oc.env:RESIDUAL_VLA_TRACE_ROOT,../traces}
+    run_id: ${runner.logger.experiment_name}
+    shard_size: 32
+  enable_torch_compile: false
+  enable_cuda_graph: false
+  model:
+    model_type: residual_mlp_policy
+    model_path: ""
+    precision: fp32
+    policy_setup: libero
+    action_dim: 7
+    num_action_chunks: 5
+    ref_num_action_chunks: 5
+    proprio_dim: 8
+    add_q_head: true
+    q_head_type: default
+    is_lora: false
+    lora_rank: 32
+    residual:
+      enabled: true
+      scale: 1.0
+      std: 0.05
+      bound: 0.1
+      dim_mask: [1, 1, 1, 1, 1, 1, 1]
+      action_low: -1.0
+      action_high: 1.0
+  residual_base_model:
+    model_type: openpi
+    model_path: ${oc.env:PI05_LIBERO_CHECKPOINT}
+    precision: null
+    num_action_chunks: 5
+    action_dim: 7
+    num_steps: 5
+    add_value_head: false
+    is_lora: false
+    lora_rank: 32
+    openpi:
+      config_name: pi05_libero
+      num_images_in_input: 2
+      noise_level: 0.0
+      action_chunk: 5
+      action_env_dim: 7
+      num_steps: 5
+      noise_method: flow_ode
+      train_expert_only: true
+      add_value_head: false
+      value_after_vlm: false
+      use_rlt: false
+
+actor:
+  group_name: ActorGroup
+  training_backend: fsdp
+  # Formal two-rank learner batch.
+  micro_batch_size: 256
+  global_batch_size: 512
+  seed: 1234
+  enable_offload: false
+  model: ${rollout.model}
+  optim:
+    clip_grad: 10.0
+    lr: 1.0e-4
+    lr_scheduler: torch_constant
+  critic_optim:
+    clip_grad: 10.0
+    lr: 1.0e-4
+    lr_scheduler: torch_constant
+  fsdp_config:
+    strategy: fsdp
+    sharding_strategy: no_shard
+    mixed_precision:
+      param_dtype: fp32
+      reduce_dtype: fp32
+      buffer_dtype: fp32
