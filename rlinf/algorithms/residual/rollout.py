@@ -112,6 +112,15 @@ def predict_residual_actions(
             residual_obs, mode=mode
         )
         base_action = residual_obs["ref_chunk"]
+
+        # The frozen base VLA and the lightweight residual policy may reside
+        # on different devices. Composition is defined in the base action
+        # space, so explicitly cross the device/dtype boundary here.
+        raw_residual = raw_residual.to(
+            device=base_action.device,
+            dtype=base_action.dtype,
+        )
+
         composition = composer.compose(
             base_action,
             raw_residual,
